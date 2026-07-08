@@ -146,28 +146,54 @@ PRESETS.forEach(p=>{
 
 // ---------- Kamera ----------
 let stream=null, facing="user", capturedDataUrl=null;
+let camStarting=false, camRetries=0;
+
+// Mehrere Constraint-Varianten: von "schön" zu "irgendwas Hauptsache Bild"
+function camConstraints(){
+  return [
+    {video:{facingMode:{ideal:facing}, width:{ideal:1080}, height:{ideal:1440}}, audio:false},
+    {video:{facingMode:facing}, audio:false},
+    {video:{facingMode:{ideal:facing}}, audio:false},
+    {video:true, audio:false}
+  ];
+}
+
 async function startCamera(){
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1080},height:{ideal:1440}},audio:false});
-    $("video").srcObject = stream;
-    $("globalStatus").textContent = "";
-    // Auto-Reconnect: falls Track endet (z.B. Verbindungsabbruch), neu starten
-    stream.getVideoTracks().forEach(t=>{ t.onended = ()=>{ setTimeout(startCamera, 800); }; });
-  }catch(e){
-    $("globalStatus").textContent = "Kamera startet neu…";
-    setTimeout(startCamera, 1500); // erneut versuchen bis Kamera frei ist
+  if(camStarting) return;         // kein paralleler Doppelstart
+  camStarting=true;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  const tries = camConstraints();
+  let ok=false, lastErr=null;
+  for(const c of tries){
+    try{
+      stream = await navigator.mediaDevices.getUserMedia(c);
+      $("video").srcObject = stream;
+      $("globalStatus").textContent = "";
+      camRetries=0; ok=true;
+      stream.getVideoTracks().forEach(t=>{ t.onended = ()=>{ if(!camStarting) startCamera(); }; });
+      break;
+    }catch(e){ lastErr=e; }   // nächste, lockerere Variante probieren
+  }
+  camStarting=false;
+  if(!ok){
+    // Nur begrenzt wiederholen; bei Rechte-Fehler klar melden statt Endlosschleife
+    if(lastErr && (lastErr.name==="NotAllowedError" || lastErr.name==="SecurityError")){
+      $("globalStatus").textContent = "Bitte Kamera-Zugriff erlauben und Seite neu laden.";
+      return;
+    }
+    if(camRetries < 5){ camRetries++; $("globalStatus").textContent="Kamera startet…"; setTimeout(startCamera, 1500); }
+    else { $("globalStatus").textContent = "Kamera nicht verfügbar. Auf „🔄 Kamera" tippen oder Seite neu laden."; }
   }
 }
-// Reconnect wenn App aus Hintergrund zurückkommt oder Fenster wieder Fokus hat
+// Reconnect nur wenn wirklich tot – und nie parallel
 document.addEventListener("visibilitychange", ()=>{
-  if(!document.hidden){
+  if(!document.hidden && !camStarting){
     const v=$("video");
-    if(!stream || !stream.active || (v && v.paused)){ startCamera(); }
+    if(!stream || !stream.active || (v && v.paused)){ camRetries=0; startCamera(); }
   }
 });
-window.addEventListener("focus", ()=>{ if(!stream || !stream.active){ startCamera(); } });
-$("flipBtn").onclick=()=>{facing = facing==="user"?"environment":"user";startCamera();};
+window.addEventListener("focus", ()=>{ if(!camStarting && (!stream || !stream.active)){ camRetries=0; startCamera(); } });
+$("flipBtn").onclick=()=>{facing = facing==="user"?"environment":"user"; camRetries=0; camStarting=false; startCamera();};
 $("snapBtn").onclick=()=>{
   const v=$("video");
   const c=document.createElement("canvas");
