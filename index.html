@@ -74,11 +74,6 @@
       <button id="retakeBtn" class="sec">↩︎ Neu</button>
       <button id="generateBtn">✨ Los!</button>
     </div>
-    <div class="settings-toggle" id="settingsToggle">⚙︎ API-Key</div>
-    <div id="settingsBox" class="hidden">
-      <label class="lbl" for="apiKey">OpenAI API-Key (sk-...):</label>
-      <input type="password" id="apiKey" placeholder="sk-...">
-    </div>
   </div>
 
   <!-- STEP 3: Ergebnis -->
@@ -152,10 +147,17 @@ $("retakeBtn").onclick=()=>{
 };
 
 // ---------- Settings ----------
-$("settingsToggle").onclick=()=>$("settingsBox").classList.toggle("hidden");
-let API_KEY = "";
-$("apiKey").oninput = e => API_KEY = e.target.value.trim();
+// Key im Speicher der Seite (nicht persistent gespeichert)
+let API_KEY = localStorage.getItem("openai_key") || "";
+function ensureKey(){
+  if(!API_KEY){
+    const k = window.prompt("Einmalige Einrichtung: OpenAI API-Key eingeben (sk-...). Wird nur auf diesem Gerät gespeichert.");
+    if(k && k.trim()){ API_KEY = k.trim(); localStorage.setItem("openai_key", API_KEY); }
+  }
+  return API_KEY;
+}
 
+// ---------- OpenAI ----------
 function dataUrlToBlob(dataUrl){
   const [meta,b64]=dataUrl.split(",");
   const mime=meta.match(/:(.*?);/)[1];
@@ -165,7 +167,7 @@ function dataUrlToBlob(dataUrl){
 }
 
 async function generate(){
-  if(!API_KEY){ $("settingsBox").classList.remove("hidden"); $("globalStatus").textContent="Bitte zuerst den OpenAI API-Key eingeben."; return; }
+  if(!ensureKey()){ $("globalStatus").textContent="Kein API-Key gesetzt."; return; }
   const preset = PRESETS.find(p=>p.id===selectedPreset);
   const custom = $("customPrompt").value.trim();
   const prompt = custom ? preset.prompt+". Also: "+custom : preset.prompt;
@@ -204,6 +206,7 @@ async function generate(){
 }
 $("generateBtn").onclick=generate;
 
+// ---------- Ergebnis-Aktionen ----------
 $("againBtn").onclick=()=>{
   $("resultCard").classList.add("hidden");
   $("cameraCard").classList.remove("hidden");
