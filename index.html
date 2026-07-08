@@ -99,7 +99,29 @@
 
 <div id="printArea" class="hidden"><img id="printImg" alt=""></div>
 
-<script>
+<script type="module">
+// ---------- Firebase (TV-Sync) ----------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyBcrUZdnK1sxz9tlcDdAFOCUlLuo3-3jvA",
+  authDomain: "aiphotobooth-45c02.firebaseapp.com",
+  databaseURL: "https://aiphotobooth-45c02-default-rtdb.firebaseio.com",
+  projectId: "aiphotobooth-45c02",
+  storageBucket: "aiphotobooth-45c02.firebasestorage.app",
+  messagingSenderId: "793480156182",
+  appId: "1:793480156182:web:755cbfc0dede74ad2c9137"
+};
+let fbDb=null;
+try{ fbDb = getDatabase(initializeApp(firebaseConfig)); }catch(e){ console.warn("Firebase off", e); }
+// sendet Anzeige-Befehl an den TV
+async function tvShow(mode, before, after){
+  if(!fbDb) return;
+  try{ await set(ref(fbDb,"display"), {mode, before:before||null, after:after||null, hold:12000, ts:Date.now()}); }
+  catch(e){ console.warn("tvShow fail", e); }
+}
+window.__tvShow = tvShow;
+
 // ---------- Presets ----------
 const PRESETS = [
   {id:"cartoon", label:"Cartoon", emoji:"🎨", prompt:"Turn this photo into a fun, colorful cartoon illustration, keeping the people recognizable, bold outlines, vibrant colors"},
@@ -162,7 +184,7 @@ $("retakeBtn").onclick=()=>{
 };
 
 // ---------- Settings ----------
-// Key wird einmalig abgefragt und lokal im Gerät gespeichert
+// Key im Speicher der Seite (nicht persistent gespeichert)
 let API_KEY = localStorage.getItem("openai_key") || "";
 function ensureKey(){
   if(!API_KEY){
@@ -213,6 +235,8 @@ async function generate(){
     $("printImg").src = url;
     $("loadingBox").classList.add("hidden");
     $("resultBox").classList.remove("hidden");
+    // TV: Vorher/Nachher zeigen (Original + KI-Bild)
+    if(window.__tvShow) window.__tvShow("reveal", capturedDataUrl, url);
   }catch(e){
     $("loadingBox").classList.add("hidden");
     $("errorBox").classList.remove("hidden");

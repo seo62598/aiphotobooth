@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KI Fotobox – TV</title>
+<style>
+  :root{
+    --bg1:#12071f; --bg2:#1b0b2e; --accent:#ff5c8a; --accent2:#7c5cff; --gold:#ffd36e;
+    --text:#ffffff; --muted:#c9b8e0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#000;color:var(--text);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+  #stage{position:fixed;inset:0;background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,.35), transparent 60%),
+    radial-gradient(1000px 700px at 85% 90%, rgba(255,92,138,.3), transparent 60%),
+    linear-gradient(135deg,var(--bg1),var(--bg2));
+    display:flex;align-items:center;justify-content:center;overflow:hidden}
+  /* floating blobs */
+  .blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.5;animation:float 14s ease-in-out infinite}
+  .blob.a{width:420px;height:420px;background:var(--accent2);top:-80px;left:-60px}
+  .blob.b{width:360px;height:360px;background:var(--accent);bottom:-70px;right:-40px;animation-delay:-5s}
+  .blob.c{width:300px;height:300px;background:var(--gold);top:40%;left:60%;opacity:.25;animation-delay:-9s}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,-30px) scale(1.1)}}
+  /* confetti dots */
+  .spark{position:absolute;width:10px;height:10px;border-radius:2px;opacity:.8;animation:fall linear infinite}
+  @keyframes fall{0%{transform:translateY(-40px) rotate(0)}100%{transform:translateY(110vh) rotate(360deg)}}
+
+  .view{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;opacity:0;transition:opacity .8s ease;pointer-events:none}
+  .view.show{opacity:1}
+
+  /* IDLE */
+  #idle .logo{font-size:5vw;font-weight:800;letter-spacing:1px;
+    background:linear-gradient(90deg,var(--accent),var(--gold),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    background-size:200% auto;animation:shine 4s linear infinite}
+  @keyframes shine{to{background-position:200% center}}
+  #idle .tag{font-size:1.8vw;color:var(--muted);margin-top:1vh}
+  .slides{position:relative;width:44vw;height:58vh;margin-top:3vh;border-radius:24px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;
+    transform:scale(1.08);transition:opacity 1.2s ease, transform 6s ease}
+  .slide.on{opacity:1;transform:scale(1)}
+  .cta{margin-top:3vh;display:flex;align-items:center;gap:1vw;font-size:1.6vw}
+  .pulse{display:inline-block;width:1.2vw;height:1.2vw;border-radius:50%;background:var(--accent);
+    animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(.8);opacity:.6}50%{transform:scale(1.3);opacity:1}}
+
+  /* REVEAL vorher/nachher */
+  #reveal .pair{display:flex;gap:2vw;align-items:center}
+  #reveal .frame{width:34vw;height:66vh;border-radius:20px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);background:#000}
+  #reveal .frame img{width:100%;height:100%;object-fit:cover}
+  #reveal .lbl{position:absolute;bottom:0;left:0;right:0;padding:1.4vh 0;text-align:center;
+    font-size:1.5vw;font-weight:700;background:linear-gradient(0deg,rgba(0,0,0,.75),transparent)}
+  #reveal .arrow{font-size:4vw;animation:bounce 1.4s ease-in-out infinite}
+  @keyframes bounce{0%,100%{transform:translateX(0)}50%{transform:translateX(14px)}}
+  .reveal-in{animation:pop .7s cubic-bezier(.2,1.3,.4,1) both}
+  @keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+
+  /* SINGLE big result */
+  #single .frame{width:46vw;height:80vh;border-radius:24px;overflow:hidden;
+    box-shadow:0 30px 90px rgba(0,0,0,.6);background:#000}
+  #single .frame img{width:100%;height:100%;object-fit:cover}
+  #single .cap{position:absolute;bottom:4vh;font-size:2vw;font-weight:800;
+    background:linear-gradient(90deg,var(--accent),var(--gold));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+
+  #status{position:fixed;bottom:12px;right:16px;font-size:12px;color:rgba(255,255,255,.25)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob a"></div><div class="blob b"></div><div class="blob c"></div>
+
+  <!-- IDLE -->
+  <div class="view show" id="idle">
+    <div class="logo">📸 KI FOTOBOX</div>
+    <div class="tag">Mach dein Foto – werde zum Cartoon!</div>
+    <div class="slides" id="slides"></div>
+    <div class="cta"><span class="pulse"></span> Tippe am Handy auf „Foto"</div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="view" id="reveal">
+    <div class="pair">
+      <div class="frame"><img id="revBefore" alt=""><div class="lbl">VORHER</div></div>
+      <div class="arrow">➜</div>
+      <div class="frame"><img id="revAfter" alt=""><div class="lbl">NACHHER</div></div>
+    </div>
+  </div>
+
+  <!-- SINGLE -->
+  <div class="view" id="single">
+    <div class="frame"><img id="singleImg" alt=""></div>
+    <div class="cap">✨ Dein KI-Bild ✨</div>
+  </div>
+
+  <div id="status">verbinde…</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, query, limitToLast }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBcrUZdnK1sxz9tlcDdAFOCUlLuo3-3jvA",
+  authDomain: "aiphotobooth-45c02.firebaseapp.com",
+  databaseURL: "https://aiphotobooth-45c02-default-rtdb.firebaseio.com",
+  projectId: "aiphotobooth-45c02",
+  storageBucket: "aiphotobooth-45c02.firebasestorage.app",
+  messagingSenderId: "793480156182",
+  appId: "1:793480156182:web:755cbfc0dede74ad2c9137"
+};
+
+const $ = id => document.getElementById(id);
+const views = { idle:$("idle"), reveal:$("reveal"), single:$("single") };
+function showView(name){
+  Object.entries(views).forEach(([k,el])=>el.classList.toggle("show", k===name));
+}
+
+// ---- Fallback-Idle-Bilder (werden später durch echte Beispiele ersetzt) ----
+let idleImages = [];      // data-URLs oder https-URLs
+const slidesEl = $("slides");
+let slideEls = [], slideIdx = 0, slideTimer = null;
+function buildSlides(){
+  slidesEl.innerHTML = "";
+  slideEls = [];
+  const imgs = idleImages.length ? idleImages : [];
+  if(!imgs.length){
+    // Platzhalter-Verlauf, falls noch keine Beispielbilder
+    slidesEl.style.background = "linear-gradient(135deg,#2a1740,#3a1d5c)";
+    return;
+  }
+  imgs.forEach((src,i)=>{
+    const d=document.createElement("div");
+    d.className="slide"+(i===0?" on":"");
+    d.style.backgroundImage=`url("${src}")`;
+    slidesEl.appendChild(d); slideEls.push(d);
+  });
+  slideIdx=0;
+  clearInterval(slideTimer);
+  slideTimer=setInterval(nextSlide, 4000);
+}
+function nextSlide(){
+  if(slideEls.length<2) return;
+  slideEls[slideIdx].classList.remove("on");
+  slideIdx=(slideIdx+1)%slideEls.length;
+  slideEls[slideIdx].classList.add("on");
+}
+
+// ---- Confetti ----
+function confetti(){
+  const colors=["#ff5c8a","#7c5cff","#ffd36e","#39d98a"];
+  for(let i=0;i<40;i++){
+    const s=document.createElement("div");
+    s.className="spark";
+    s.style.left=Math.random()*100+"vw";
+    s.style.background=colors[i%colors.length];
+    s.style.animationDuration=(2+Math.random()*2.5)+"s";
+    s.style.animationDelay=(Math.random()*0.6)+"s";
+    document.getElementById("stage").appendChild(s);
+    setTimeout(()=>s.remove(), 5000);
+  }
+}
+
+// ---- Firebase ----
+let db=null, idleReturnTimer=null;
+function connect(){
+  try{
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    // Idle-Beispielbilder aus DB (falls hinterlegt)
+    onValue(ref(db, "gallery/examples"), snap=>{
+      const v = snap.val();
+      if(v && Array.isArray(v) && v.length){ idleImages = v; buildSlides(); }
+    });
+    // Aktueller Anzeige-Befehl vom Handy
+    onValue(ref(db, "display"), snap=>{
+      $("status").textContent="verbunden";
+      const d = snap.val();
+      if(!d){ showView("idle"); return; }
+      handleDisplay(d);
+    }, err=>{ $("status").textContent="Reconnect…"; });
+  }catch(e){
+    $("status").textContent="Reconnect…";
+    setTimeout(connect, 2500);
+  }
+}
+
+function handleDisplay(d){
+  clearTimeout(idleReturnTimer);
+  if(d.mode==="reveal" && d.before && d.after){
+    $("revBefore").src = d.before;
+    $("revAfter").src = "";
+    showView("reveal");
+    // erst Vorher, dann Nachher „poppt" rein
+    setTimeout(()=>{ $("revAfter").src=d.after; $("revAfter").parentElement.classList.add("reveal-in"); confetti(); }, 1200);
+    idleReturnTimer=setTimeout(()=>showView("idle"), (d.hold||12000));
+  } else if(d.mode==="single" && d.after){
+    $("singleImg").src=d.after;
+    showView("single"); confetti();
+    idleReturnTimer=setTimeout(()=>showView("idle"), (d.hold||12000));
+  } else {
+    showView("idle");
+  }
+}
+
+buildSlides();
+connect();
+// Sicherheits-Reconnect: falls Tab lange offen & Verbindung tot, neu laden
+setInterval(()=>{ if($("status").textContent==="Reconnect…"){ location.reload(); } }, 60000);
+</script>
+</body>
+</html>
