@@ -22,8 +22,6 @@
   .blob.b{width:480px;height:480px;background:var(--accent);bottom:-140px;right:-70px;animation-delay:-7s}
   .blob.c{width:400px;height:400px;background:var(--gold);top:35%;left:55%;opacity:.2;animation-delay:-12s}
   @keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(55px,-45px) scale(1.14)}}
-  .spark{position:absolute;width:12px;height:12px;border-radius:2px;opacity:.9;animation:fall linear infinite;z-index:90}
-  @keyframes fall{0%{transform:translateY(-40px) rotate(0)}100%{transform:translateY(110vh) rotate(540deg)}}
 
   .topbar{position:absolute;top:0;left:0;right:0;height:11vh;display:flex;align-items:center;
     justify-content:space-between;padding:0 4vw;z-index:60}
@@ -52,8 +50,11 @@
     font-size:.75vw;font-weight:800;letter-spacing:.5px;color:#fff;opacity:0;transition:opacity .4s}
   .polaroid .tag.before{background:rgba(0,0,0,.55)}
   .polaroid .tag.after{background:linear-gradient(90deg,var(--accent),var(--accent2))}
-  .polaroid.scatter{opacity:.85}
-  .polaroid.focus{z-index:40}
+  .polaroid.scatter{opacity:.7}
+  .polaroid.focus{z-index:40;opacity:1!important}
+  /* Featured-Polaroid: komplett deckend, keine hinteren Fotos sichtbar */
+  .polaroid.focus .pic{background:#000}
+  .polaroid.focus{background:#fff}
 
   .headline{position:absolute;bottom:5vh;left:0;right:0;text-align:center;z-index:55;
     font-size:1.9vw;font-weight:700;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,.6)}
@@ -203,7 +204,6 @@ function focusNext(){
     f.imgB.classList.remove("on"); f.imgA.classList.add("on");
     f.tagEl.className="tag after"; f.tagEl.textContent="NACHHER";
     f.showingAfter=true;
-    confetti(14);
   }, 1400);
 }
 
@@ -213,18 +213,6 @@ function startCycle(){
   focusIdx=-1;
   focusNext();
   cycleTimer=setInterval(focusNext, 4200);
-}
-
-function confetti(n){
-  const colors=["#ff5c8a","#7c5cff","#ffd36e","#39d98a"];
-  for(let i=0;i<(n||50);i++){
-    const s=document.createElement("div"); s.className="spark";
-    s.style.left=Math.random()*100+"vw";
-    s.style.background=colors[i%colors.length];
-    s.style.animationDuration=(2+Math.random()*2.5)+"s";
-    s.style.animationDelay=(Math.random()*0.7)+"s";
-    $("stage").appendChild(s); setTimeout(()=>s.remove(),5200);
-  }
 }
 
 let db=null, idleTimer=null;
@@ -252,12 +240,12 @@ function handleDisplay(d){
     // Polaroid dreht sich, dabei Wechsel Vorher->Nachher
     setTimeout(()=>{
       $("revPola").classList.remove("flip3d"); void $("revPola").offsetWidth; $("revPola").classList.add("flip3d");
-      setTimeout(()=>{ $("revBefore").classList.remove("on"); $("revAfter").classList.add("on"); confetti(60); }, 550);
+      setTimeout(()=>{ $("revBefore").classList.remove("on"); $("revAfter").classList.add("on"); }, 550);
     }, 700);
     if(hold>0) idleTimer=setTimeout(()=>{ showView("idle"); startCycle(); }, hold);
   } else if(d.mode==="single" && d.after){
     clearInterval(cycleTimer);
-    $("singleImg").src=d.after; showView("single"); confetti(60);
+    $("singleImg").src=d.after; showView("single");
     if(hold>0) idleTimer=setTimeout(()=>{ showView("idle"); startCycle(); }, hold);
   } else { showView("idle"); startCycle(); }
 }
