@@ -86,8 +86,12 @@
     <div id="resultBox" class="hidden">
       <img id="resultImg" class="preview" alt="Ergebnis">
       <div class="row" style="margin-top:12px">
-        <button id="tvBtn" class="sec">📺 TV</button>
+        <button id="tvBtn" class="sec">📺 TV Vollbild</button>
         <button id="printBtn" class="sec">🖨️ Druck</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="tvLastBtn" class="sec">📺 Letztes Bild</button>
+        <button id="tvGalleryBtn" class="sec">📺 Galerie</button>
       </div>
       <button id="againBtn">🔁 Nochmal</button>
     </div>
@@ -240,6 +244,12 @@ async function generate(){
     $("printImg").src = url;
     $("loadingBox").classList.add("hidden");
     $("resultBox").classList.remove("hidden");
+    // Lokal auf dem Handy speichern (Download in den Bilder-/Download-Ordner)
+    try{
+      const a=document.createElement("a");
+      a.href=url; a.download="fotobox-"+Date.now()+".png";
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){ console.warn("Download fehlgeschlagen", e); }
     // TV: Vorher/Nachher zeigen (Original + KI-Bild)
     if(window.__tvShow) window.__tvShow("reveal", capturedDataUrl, url);
   }catch(e){
@@ -274,6 +284,16 @@ $("tvBtn").onclick=()=>{
   if(img.requestFullscreen) img.requestFullscreen();
   else if(img.webkitRequestFullscreen) img.webkitRequestFullscreen();
 };
+// TV-Steuerung: letztes Bild gross zeigen bzw. zurueck zur Galerie
+$("tvLastBtn").onclick=()=>{
+  const src=$("resultImg").src;
+  if(window.__tvShow && src && src.length>30) window.__tvShow("single", null, src);
+  $("globalStatus").textContent="An TV gesendet: letztes Bild";
+};
+$("tvGalleryBtn").onclick=()=>{
+  if(window.__tvShow) window.__tvShow("gallery", null, null);
+  $("globalStatus").textContent="TV zeigt Galerie";
+};
 
 startCamera();
 </script>
@@ -294,8 +314,9 @@ startCamera();
       appId: "1:793480156182:web:755cbfc0dede74ad2c9137"
     };
     const db = getDatabase(initializeApp(firebaseConfig));
-    window.__tvShow = async (mode, before, after)=>{
-      try{ await set(ref(db,"display"), {mode, before:before||null, after:after||null, hold:12000, ts:Date.now()}); }
+    window.__tvShow = async (mode, before, after, hold)=>{
+      const h = (typeof hold==="number") ? hold : 12000;
+      try{ await set(ref(db,"display"), {mode, before:before||null, after:after||null, hold:h, ts:Date.now()}); }
       catch(e){ console.warn("tvShow fail", e); }
     };
     console.log("Firebase TV-Sync bereit");
