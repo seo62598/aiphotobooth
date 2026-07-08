@@ -203,6 +203,25 @@ function ensureKey(){
   return API_KEY;
 }
 
+// Bild fuer den TV verkleinern (schwache TV-Browser rendern keine riesigen data-URLs)
+function scaleForTv(dataUrl, maxSide){
+  maxSide = maxSide || 1000;
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w=img.naturalWidth, h=img.naturalHeight;
+      const scale = Math.min(1, maxSide/Math.max(w,h));
+      w=Math.round(w*scale); h=Math.round(h*scale);
+      const c=document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      try{ resolve(c.toDataURL("image/jpeg", 0.82)); }
+      catch(e){ resolve(dataUrl); }
+    };
+    img.onerror = ()=>resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 // ---------- OpenAI ----------
 function dataUrlToBlob(dataUrl){
   const [meta,b64]=dataUrl.split(",");
@@ -250,8 +269,14 @@ async function generate(){
       a.href=url; a.download="fotobox-"+Date.now()+".png";
       document.body.appendChild(a); a.click(); a.remove();
     }catch(e){ console.warn("Download fehlgeschlagen", e); }
-    // TV: Vorher/Nachher zeigen (Original + KI-Bild)
-    if(window.__tvShow) window.__tvShow("reveal", capturedDataUrl, url);
+    // TV: Vorher/Nachher zeigen - verkleinerte Versionen (TV-Browser vertraegt keine riesigen Bilder)
+    if(window.__tvShow){
+      try{
+        const tvBefore = await scaleForTv(capturedDataUrl, 900);
+        const tvAfter  = await scaleForTv(url, 1000);
+        window.__tvShow("reveal", tvBefore, tvAfter);
+      }catch(e){ window.__tvShow("reveal", capturedDataUrl, url); }
+    }
   }catch(e){
     $("loadingBox").classList.add("hidden");
     $("errorBox").classList.remove("hidden");
@@ -285,9 +310,12 @@ $("tvBtn").onclick=()=>{
   else if(img.webkitRequestFullscreen) img.webkitRequestFullscreen();
 };
 // TV-Steuerung: letztes Bild gross zeigen bzw. zurueck zur Galerie
-$("tvLastBtn").onclick=()=>{
+$("tvLastBtn").onclick=async ()=>{
   const src=$("resultImg").src;
-  if(window.__tvShow && src && src.length>30) window.__tvShow("single", null, src);
+  if(window.__tvShow && src && src.length>30){
+    const small = await scaleForTv(src, 1000);
+    window.__tvShow("single", null, small);
+  }
   $("globalStatus").textContent="An TV gesendet: letztes Bild";
 };
 $("tvGalleryBtn").onclick=()=>{
