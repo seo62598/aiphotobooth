@@ -46,8 +46,9 @@
   @media print{
     body *{visibility:hidden}
     #printArea,#printArea *{visibility:visible}
-    #printArea{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff}
-    #printArea img{max-width:100%;max-height:100%}
+    #printArea.hidden{display:flex!important}
+    #printArea{position:fixed;inset:0;display:flex!important;align-items:center;justify-content:center;background:#fff}
+    #printArea img{max-width:100%;max-height:100%;display:block}
   }
 </style>
 </head>
@@ -128,8 +129,22 @@ async function startCamera(){
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1080},height:{ideal:1440}},audio:false});
     $("video").srcObject = stream;
-  }catch(e){ $("globalStatus").textContent = "Kamera-Fehler: "+e.message; }
+    $("globalStatus").textContent = "";
+    // Auto-Reconnect: falls Track endet (z.B. Verbindungsabbruch), neu starten
+    stream.getVideoTracks().forEach(t=>{ t.onended = ()=>{ setTimeout(startCamera, 800); }; });
+  }catch(e){
+    $("globalStatus").textContent = "Kamera startet neu…";
+    setTimeout(startCamera, 1500); // erneut versuchen bis Kamera frei ist
+  }
 }
+// Reconnect wenn App aus Hintergrund zurückkommt oder Fenster wieder Fokus hat
+document.addEventListener("visibilitychange", ()=>{
+  if(!document.hidden){
+    const v=$("video");
+    if(!stream || !stream.active || (v && v.paused)){ startCamera(); }
+  }
+});
+window.addEventListener("focus", ()=>{ if(!stream || !stream.active){ startCamera(); } });
 $("flipBtn").onclick=()=>{facing = facing==="user"?"environment":"user";startCamera();};
 $("snapBtn").onclick=()=>{
   const v=$("video");
@@ -147,7 +162,7 @@ $("retakeBtn").onclick=()=>{
 };
 
 // ---------- Settings ----------
-// Key im Speicher der Seite (nicht persistent gespeichert)
+// Key wird einmalig abgefragt und lokal im Gerät gespeichert
 let API_KEY = localStorage.getItem("openai_key") || "";
 function ensureKey(){
   if(!API_KEY){
@@ -212,7 +227,19 @@ $("againBtn").onclick=()=>{
   $("cameraCard").classList.remove("hidden");
   $("customPrompt").value="";
 };
-$("printBtn").onclick=()=>window.print();
+$("printBtn").onclick=()=>{
+  const src = $("resultImg").src;
+  if(!src || src.length < 30){ $("globalStatus").textContent="Kein Bild zum Drucken."; return; }
+  const pImg = $("printImg");
+  // Bild sicher setzen und erst drucken, wenn es wirklich geladen ist
+  if(pImg.src !== src) pImg.src = src;
+  if(pImg.complete && pImg.naturalWidth > 0){
+    window.print();
+  } else {
+    pImg.onload = ()=>{ setTimeout(()=>window.print(), 100); };
+    pImg.onerror = ()=>{ $("globalStatus").textContent="Druckbild konnte nicht geladen werden."; };
+  }
+};
 $("tvBtn").onclick=()=>{
   const img=$("resultImg");
   if(img.requestFullscreen) img.requestFullscreen();
