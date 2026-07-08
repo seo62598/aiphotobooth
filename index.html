@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KI Fotobox</title>
+<style>
+  :root{
+    --bg:#0e0e13; --card:#1b1b25; --accent:#ff5c8a; --accent2:#7c5cff;
+    --text:#f4f4f8; --muted:#a0a0b0; --ok:#39d98a; --err:#ff5c5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+  #app{display:flex;flex-direction:column;min-height:100%;max-width:520px;margin:0 auto;padding:16px}
+  h1{font-size:22px;margin:4px 0 12px;text-align:center;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:14px;
+    box-shadow:0 6px 24px rgba(0,0,0,.35)}
+  video,canvas,img.preview{width:100%;border-radius:14px;display:block;background:#000;aspect-ratio:3/4;object-fit:cover}
+  .hidden{display:none!important}
+  button{border:none;border-radius:14px;padding:14px 16px;font-size:16px;font-weight:600;
+    color:#fff;background:linear-gradient(90deg,var(--accent),var(--accent2));width:100%;
+    margin-top:10px;cursor:pointer;transition:transform .05s}
+  button:active{transform:scale(.98)}
+  button.sec{background:#2a2a38;color:var(--text)}
+  button:disabled{opacity:.5}
+  .row{display:flex;gap:10px}
+  .row button{margin-top:0}
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .preset{background:#2a2a38;border:2px solid transparent;border-radius:14px;padding:12px;
+    text-align:center;font-size:14px;cursor:pointer;transition:.15s}
+  .preset.active{border-color:var(--accent);background:#33263a}
+  .preset .emoji{font-size:26px;display:block;margin-bottom:4px}
+  textarea{width:100%;background:#2a2a38;border:none;border-radius:12px;color:var(--text);
+    padding:12px;font-size:15px;margin-top:10px;resize:none;min-height:60px;font-family:inherit}
+  label.lbl{font-size:13px;color:var(--muted);display:block;margin-top:12px}
+  input[type=password]{width:100%;background:#2a2a38;border:none;border-radius:12px;
+    color:var(--text);padding:12px;font-size:15px;margin-top:6px}
+  .status{text-align:center;font-size:14px;color:var(--muted);margin-top:8px;min-height:20px}
+  .spinner{width:46px;height:46px;border:5px solid #333;border-top-color:var(--accent);
+    border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .settings-toggle{text-align:center;color:var(--muted);font-size:13px;margin-top:6px;cursor:pointer}
+  @media print{
+    body *{visibility:hidden}
+    #printArea,#printArea *{visibility:visible}
+    #printArea{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff}
+    #printArea img{max-width:100%;max-height:100%}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>📸 KI Fotobox</h1>
+
+  <!-- STEP 1: Kamera -->
+  <div class="card" id="cameraCard">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="row">
+      <button id="flipBtn" class="sec">🔄 Kamera</button>
+      <button id="snapBtn">📷 Foto</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Bearbeiten -->
+  <div class="card hidden" id="editCard">
+    <img id="captured" class="preview" alt="Aufnahme">
+    <div class="presets" id="presets"></div>
+    <label class="lbl" for="customPrompt">Eigener Wunsch (optional):</label>
+    <textarea id="customPrompt" placeholder="z.B. als Superheld im Comic-Stil, mit Umhang"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button id="retakeBtn" class="sec">↩︎ Neu</button>
+      <button id="generateBtn">✨ Los!</button>
+    </div>
+    <div class="settings-toggle" id="settingsToggle">⚙︎ API-Key</div>
+    <div id="settingsBox" class="hidden">
+      <label class="lbl" for="apiKey">OpenAI API-Key (sk-...):</label>
+      <input type="password" id="apiKey" placeholder="sk-...">
+    </div>
+  </div>
+
+  <!-- STEP 3: Ergebnis -->
+  <div class="card hidden" id="resultCard">
+    <div id="loadingBox" class="hidden">
+      <div class="spinner"></div>
+      <div class="status">KI zaubert dein Bild… ⏳</div>
+    </div>
+    <div id="resultBox" class="hidden">
+      <img id="resultImg" class="preview" alt="Ergebnis">
+      <div class="row" style="margin-top:12px">
+        <button id="tvBtn" class="sec">📺 TV</button>
+        <button id="printBtn" class="sec">🖨️ Druck</button>
+      </div>
+      <button id="againBtn">🔁 Nochmal</button>
+    </div>
+    <div id="errorBox" class="status hidden"></div>
+  </div>
+
+  <div class="status" id="globalStatus"></div>
+</div>
+
+<div id="printArea" class="hidden"><img id="printImg" alt=""></div>
+
+<script>
+// ---------- Presets ----------
+const PRESETS = [
+  {id:"cartoon", label:"Cartoon", emoji:"🎨", prompt:"Turn this photo into a fun, colorful cartoon illustration, keeping the people recognizable, bold outlines, vibrant colors"},
+  {id:"comic", label:"Comic", emoji:"💥", prompt:"Transform this photo into a comic book style illustration with halftone dots, bold ink outlines and speech-bubble energy"},
+  {id:"anime", label:"Anime", emoji:"🌸", prompt:"Convert this photo into a Japanese anime style illustration with big expressive eyes and cel shading"},
+  {id:"pixar", label:"3D Toon", emoji:"🧸", prompt:"Turn this photo into a cute Pixar-style 3D animated character render, soft lighting, big friendly expressions"},
+  {id:"pop", label:"Pop Art", emoji:"🟡", prompt:"Transform this photo into a Warhol-style pop art image with bright flat color blocks and high contrast"},
+  {id:"funny", label:"Lustig", emoji:"🤪", prompt:"Turn this photo into a funny exaggerated caricature, big head, silly cartoon style, humorous"}
+];
+let selectedPreset = "cartoon";
+
+const $ = id => document.getElementById(id);
+const presetsEl = $("presets");
+PRESETS.forEach(p=>{
+  const d=document.createElement("div");
+  d.className="preset"+(p.id===selectedPreset?" active":"");
+  d.dataset.id=p.id;
+  d.innerHTML=`<span class="emoji">${p.emoji}</span>${p.label}`;
+  d.onclick=()=>{selectedPreset=p.id;document.querySelectorAll(".preset").forEach(x=>x.classList.remove("active"));d.classList.add("active");};
+  presetsEl.appendChild(d);
+});
+
+// ---------- Kamera ----------
+let stream=null, facing="user", capturedDataUrl=null;
+async function startCamera(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1080},height:{ideal:1440}},audio:false});
+    $("video").srcObject = stream;
+  }catch(e){ $("globalStatus").textContent = "Kamera-Fehler: "+e.message; }
+}
+$("flipBtn").onclick=()=>{facing = facing==="user"?"environment":"user";startCamera();};
+$("snapBtn").onclick=()=>{
+  const v=$("video");
+  const c=document.createElement("canvas");
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);
+  capturedDataUrl = c.toDataURL("image/png");
+  $("captured").src = capturedDataUrl;
+  $("cameraCard").classList.add("hidden");
+  $("editCard").classList.remove("hidden");
+};
+$("retakeBtn").onclick=()=>{
+  $("editCard").classList.add("hidden");
+  $("cameraCard").classList.remove("hidden");
+};
+
+// ---------- Settings ----------
+$("settingsToggle").onclick=()=>$("settingsBox").classList.toggle("hidden");
+let API_KEY = "";
+$("apiKey").oninput = e => API_KEY = e.target.value.trim();
+
+function dataUrlToBlob(dataUrl){
+  const [meta,b64]=dataUrl.split(",");
+  const mime=meta.match(/:(.*?);/)[1];
+  const bin=atob(b64); const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+
+async function generate(){
+  if(!API_KEY){ $("settingsBox").classList.remove("hidden"); $("globalStatus").textContent="Bitte zuerst den OpenAI API-Key eingeben."; return; }
+  const preset = PRESETS.find(p=>p.id===selectedPreset);
+  const custom = $("customPrompt").value.trim();
+  const prompt = custom ? preset.prompt+". Also: "+custom : preset.prompt;
+
+  $("editCard").classList.add("hidden");
+  $("resultCard").classList.remove("hidden");
+  $("loadingBox").classList.remove("hidden");
+  $("resultBox").classList.add("hidden");
+  $("errorBox").classList.add("hidden");
+
+  try{
+    const fd = new FormData();
+    fd.append("model","gpt-image-1");
+    fd.append("image", dataUrlToBlob(capturedDataUrl), "photo.png");
+    fd.append("prompt", prompt);
+    fd.append("size","1024x1536");
+
+    const res = await fetch("https://api.openai.com/v1/images/edits",{
+      method:"POST",
+      headers:{ "Authorization":"Bearer "+API_KEY },
+      body: fd
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || ("HTTP "+res.status));
+    const b64 = data.data[0].b64_json;
+    const url = "data:image/png;base64,"+b64;
+    $("resultImg").src = url;
+    $("printImg").src = url;
+    $("loadingBox").classList.add("hidden");
+    $("resultBox").classList.remove("hidden");
+  }catch(e){
+    $("loadingBox").classList.add("hidden");
+    $("errorBox").classList.remove("hidden");
+    $("errorBox").textContent = "Fehler: "+e.message;
+  }
+}
+$("generateBtn").onclick=generate;
+
+$("againBtn").onclick=()=>{
+  $("resultCard").classList.add("hidden");
+  $("cameraCard").classList.remove("hidden");
+  $("customPrompt").value="";
+};
+$("printBtn").onclick=()=>window.print();
+$("tvBtn").onclick=()=>{
+  const img=$("resultImg");
+  if(img.requestFullscreen) img.requestFullscreen();
+  else if(img.webkitRequestFullscreen) img.webkitRequestFullscreen();
+};
+
+startCamera();
+</script>
+</body>
+</html>
