@@ -161,7 +161,7 @@ async function startCamera(){
       return;
     }
     if(camRetries < 5){ camRetries++; $("globalStatus").textContent="Kamera startet…"; setTimeout(startCamera, 1500); }
-    else { $("globalStatus").textContent = "Kamera nicht verfügbar. Auf „🔄 Kamera" tippen oder Seite neu laden."; }
+    else { $("globalStatus").textContent = "Kamera nicht verfuegbar. Kamera-Umschalten tippen oder Seite neu laden."; }
   }
 }
 // Reconnect nur wenn wirklich tot – und nie parallel
